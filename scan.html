@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>優惠條碼管理系統</title>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<style>
+  :root {
+    --red: #E8192C;
+    --red-dark: #B8101F;
+    --red-light: #FFF0F1;
+    --ink: #1A1A1A;
+    --ink-mid: #555;
+    --ink-light: #999;
+    --surface: #F7F7F7;
+    --white: #FFFFFF;
+    --border: #E0E0E0;
+    --green: #1A7F37;
+    --green-light: #EAFBEE;
+    --orange: #D45D00;
+    --orange-light: #FFF4E8;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--surface);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--red);
+    color: var(--white);
+    padding: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .header-inner {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title { display: flex; align-items: center; gap: 10px; }
+  .header-icon {
+    width: 34px; height: 34px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .header-icon svg { width: 20px; height: 20px; fill: white; }
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: 0.02em; }
+  header p { font-size: 11px; opacity: 0.8; margin-top: 1px; }
+  .header-stats { text-align: right; }
+  .header-stats span { font-size: 22px; font-weight: 700; display: block; line-height: 1; }
+  .header-stats small { font-size: 11px; opacity: 0.8; }
+
+  /* ── Layout ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+
+  /* ── Tabs ── */
+  .tabs {
+    display: flex;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 4px;
+    margin-bottom: 20px;
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 1; padding: 9px;
+    border: none; background: transparent;
+    border-radius: 7px; font-size: 14px; font-weight: 500;
+    color: var(--ink-mid); cursor: pointer; transition: all 0.15s;
+  }
+  .tab-btn.active { background: var(--red); color: white; }
+  .tab-btn:not(.active):hover { background: var(--surface); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Card ── */
+  .card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px; margin-bottom: 16px;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600;
+    color: var(--ink-mid); text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 14px;
+  }
+
+  /* ── Form ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; font-weight: 600; color: var(--ink-mid); }
+  input[type=text], input[type=datetime-local], select, textarea {
+    border: 1.5px solid var(--border);
+    border-radius: 7px; padding: 9px 12px;
+    font-size: 14px; color: var(--ink);
+    background: var(--white); outline: none;
+    transition: border 0.15s; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--red); }
+  textarea { resize: vertical; min-height: 60px; }
+
+  /* ── Buttons ── */
+  .btn {
+    padding: 10px 18px; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; display: inline-flex;
+    align-items: center; gap: 6px; font-family: inherit;
+  }
+  .btn-primary { background: var(--red); color: white; }
+  .btn-primary:hover { background: var(--red-dark); }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-secondary { background: transparent; color: var(--ink-mid); border: 1.5px solid var(--border); }
+  .btn-secondary:hover { background: var(--surface); }
+  .btn-danger { background: transparent; color: var(--red); border: 1.5px solid var(--red); }
+  .btn-danger:hover { background: var(--red-light); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .btn-icon { padding: 7px; border-radius: 7px; }
+
+  /* ── Photo upload zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 32px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--red);
+    background: var(--red-light);
+  }
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .upload-zone-icon { font-size: 36px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 14px; color: var(--ink-mid); margin-bottom: 4px; }
+  .upload-zone small { font-size: 12px; color: var(--ink-light); }
+
+  .photo-preview-wrap {
+    display: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-top: 12px;
+    text-align: center;
+    background: #000;
+    position: relative;
+  }
+  .photo-preview-wrap img {
+    max-width: 100%; max-height: 260px;
+    object-fit: contain; display: block; margin: 0 auto;
+  }
+  .photo-preview-actions {
+    display: flex; gap: 8px; justify-content: center;
+    padding: 10px; background: var(--white);
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── Barcode preview ── */
+  .barcode-preview {
+    display: none; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px;
+    text-align: center; background: var(--white); margin-top: 16px;
+  }
+  .barcode-preview.show { display: block; }
+  .barcode-preview h3 { font-size: 16px; margin-bottom: 4px; }
+  .barcode-preview p { font-size: 12px; color: var(--ink-light); margin-bottom: 16px; }
+  .barcode-preview svg { max-width: 100%; }
+  .preview-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+
+  /* ── Item list ── */
+  .list-toolbar {
+    display: flex; gap: 10px; margin-bottom: 14px;
+    align-items: center; flex-wrap: wrap;
+  }
+  .search-wrap { flex: 1; position: relative; min-width: 180px; }
+  .search-wrap input { width: 100%; padding-left: 36px; }
+  .search-icon {
+    position: absolute; left: 11px; top: 50%;
+    transform: translateY(-50%); color: var(--ink-light);
+    font-size: 16px; pointer-events: none;
+  }
+  .filter-select { max-width: 160px; font-size: 13px; }
+
+  .item-grid { display: grid; gap: 12px; }
+  .item-card {
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: var(--radius); overflow: hidden; transition: box-shadow 0.15s;
+  }
+  .item-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+  .item-card-header {
+    padding: 14px 16px 10px;
+    display: flex; justify-content: space-between;
+    align-items: flex-start; gap: 8px;
+  }
+  .item-name { font-size: 15px; font-weight: 700; }
+  .item-meta { font-size: 12px; color: var(--ink-light); margin-top: 3px; }
+  .item-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
+  .tag-format { background: #EEF0FF; color: #3A4CC0; }
+  .tag-photo { background: #F0F0FF; color: #5533AA; }
+  .tag-active { background: var(--green-light); color: var(--green); }
+  .tag-expired { background: #f0f0f0; color: var(--ink-light); }
+  .tag-expiring { background: var(--orange-light); color: var(--orange); }
+
+  .item-barcode-area {
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 16px; text-align: center; display: none;
+  }
+  .item-barcode-area.show { display: block; }
+  .item-barcode-area svg { max-width: 280px; }
+  .item-barcode-area img { max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 6px; }
+
+  .item-footer {
+    padding: 10px 16px; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between;
+    align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  .expire-info { font-size: 12px; color: var(--ink-mid); }
+  .expire-info.warn { color: var(--orange); font-weight: 600; }
+  .expire-info.expired { color: var(--red); font-weight: 600; }
+  .item-actions { display: flex; gap: 6px; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--ink-light);
+  }
+  .empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: white;
+    padding: 12px 20px; border-radius: 100px;
+    font-size: 14px; font-weight: 500; z-index: 9999;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: var(--green); }
+  .toast.error { background: var(--red); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 200;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 14px; padding: 24px;
+    max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  }
+  .modal h2 { font-size: 18px; margin-bottom: 8px; }
+  .modal p { font-size: 14px; color: var(--ink-mid); margin-bottom: 20px; line-height: 1.6; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── SCAN FULLSCREEN MODAL ── */
+  .scan-overlay {
+    display: none; position: fixed; inset: 0;
+    background: #000; z-index: 500;
+    flex-direction: column; align-items: center; justify-content: center;
+  }
+  .scan-overlay.show { display: flex; }
+  .scan-header {
+    position: absolute; top: 0; left: 0; right: 0;
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(0,0,0,0.6);
+  }
+  .scan-title { color: white; }
+  .scan-title h2 { font-size: 18px; font-weight: 700; }
+  .scan-title p { font-size: 12px; opacity: 0.7; margin-top: 2px; }
+  .scan-close {
+    background: rgba(255,255,255,0.15);
+    border: none; color: white; font-size: 22px;
+    width: 40px; height: 40px; border-radius: 50%;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s;
+  }
+  .scan-close:hover { background: rgba(255,255,255,0.3); }
+  .scan-content {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    width: 100%; padding: 80px 24px 100px;
+  }
+  .scan-barcode-box {
+    background: white; border-radius: 16px;
+    padding: 28px 32px; max-width: 560px; width: 100%;
+    text-align: center; box-shadow: 0 0 60px rgba(255,255,255,0.1);
+  }
+  .scan-barcode-box svg { width: 100%; max-height: 180px; }
+  .scan-barcode-box img { max-width: 100%; max-height: 220px; object-fit: contain; border-radius: 8px; }
+  .scan-label {
+    font-size: 20px; font-weight: 700; color: var(--ink);
+    margin-bottom: 4px; margin-top: 0;
+  }
+  .scan-disc { font-size: 14px; color: var(--ink-mid); margin-bottom: 18px; }
+  .scan-footer {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 16px 24px; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .scan-expire { color: white; font-size: 13px; opacity: 0.85; }
+  .scan-brightness {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .scan-brightness label { color: white; font-size: 12px; opacity: 0.7; }
+  .scan-brightness input[type=range] {
+    width: 100px; accent-color: white;
+    border: none; background: transparent; padding: 0;
+  }
+  .screen-flash {
+    position: absolute; inset: 0; background: white;
+    pointer-events: none; opacity: 0; transition: opacity 0.1s;
+  }
+
+  /* ── Print ── */
+  @media print {
+    header, .tabs, .list-toolbar, .item-actions, .item-footer,
+    .card-title, #tab-add { display: none !important; }
+    .item-card { border: none; box-shadow: none; page-break-inside: avoid; }
+    .item-barcode-area { display: block !important; }
+    body { background: white; }
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 600px) {
+    .form-grid, .form-grid.three { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .header-stats span { font-size: 18px; }
+  }
+
+  /* ── Progress bar ── */
+  .expire-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; }
+  .expire-bar { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+  /* ── Footer ── */
+  body { padding-bottom: 52px; }
+  .site-footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    padding: 10px 20px;
+    text-align: center;
+    color: var(--ink-light);
+    font-size: 13px;
+    border-top: 1px solid var(--border);
+    background: var(--white);
+    z-index: 90;
+  }
+  .site-footer .footer-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .footer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--red-light);
+    color: var(--red-dark);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 4px 12px;
+    border-radius: 100px;
+    border: 1px solid rgba(232,25,44,0.2);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-title">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <rect x="2" y="4" width="2" height="16"/><rect x="5" y="4" width="1" height="16"/>
+          <rect x="7" y="4" width="2" height="16"/><rect x="11" y="4" width="1" height="16"/>
+          <rect x="13" y="4" width="3" height="16"/><rect x="17" y="4" width="1" height="16"/>
+          <rect x="19" y="4" width="3" height="16"/>
+        </svg>
+      </div>
+      <div>
+        <h1>優惠條碼管理系統</h1>
+        <p>超商優惠條碼產生與追蹤</p>
+      </div>
+    </div>
+    <div class="header-stats">
+      <span id="active-count">0</span>
+      <small>有效條碼</small>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('list')">📋 條碼清單</button>
+    <button class="tab-btn" onclick="switchTab('add')">➕ 新增條碼</button>
+    <button class="tab-btn" onclick="switchTab('photo')">📷 上傳照片</button>
+  </div>
+
+  <!-- ── LIST TAB ── -->
+  <div class="tab-panel active" id="tab-list">
+    <div class="list-toolbar">
+      <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="搜尋品項名稱或條碼…" oninput="renderList()">
+      </div>
+      <select class="filter-select" id="filterSelect" onchange="renderList()">
+        <option value="all">全部</option>
+        <option value="active">有效中</option>
+        <option value="expiring">即將到期</option>
+        <option value="expired">已過期</option>
+        <option value="permanent">無期限</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="printAll()">🖨️ 列印</button>
+      <button class="btn btn-secondary btn-sm" onclick="cleanExpired()">🗑️ 清除過期</button>
+    </div>
+    <div class="item-grid" id="itemGrid"></div>
+  </div>
+
+  <!-- ── ADD TAB ── -->
+  <div class="tab-panel" id="tab-add">
+    <div class="card">
+      <div class="card-title">條碼資訊</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="itemName">品項名稱 *</label>
+          <input type="text" id="itemName" placeholder="例：大杯拿鐵 85折">
+        </div>
+        <div class="form-group">
+          <label for="barcodeValue">條碼數字 *</label>
+          <input type="text" id="barcodeValue" placeholder="例：4710088050019" oninput="livePreview()">
+        </div>
+        <div class="form-group">
+          <label for="barcodeFormat">條碼格式</label>
+          <select id="barcodeFormat" onchange="livePreview()">
+            <option value="CODE128">Code 128（通用）</option>
+            <option value="EAN13">EAN-13（13碼）</option>
+            <option value="EAN8">EAN-8（8碼）</option>
+            <option value="UPC">UPC-A（12碼）</option>
+            <option value="CODE39">Code 39</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="discountLabel">優惠說明（選填）</label>
+          <input type="text" id="discountLabel" placeholder="例：買一送一、85折…">
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">有效期限設定</div>
+      <div class="form-grid three">
+        <div class="form-group">
+          <label for="expireMode">到期方式</label>
+          <select id="expireMode" onchange="toggleExpireFields()">
+            <option value="permanent">永久有效</option>
+            <option value="datetime">指定到期時間</option>
+            <option value="duration">設定有效天數</option>
+          </select>
+        </div>
+        <div class="form-group" id="datetimeGroup" style="display:none">
+          <label for="expireDatetime">到期日期時間</label>
+          <input type="datetime-local" id="expireDatetime">
+        </div>
+        <div class="form-group" id="durationGroup" style="display:none">
+          <label for="expireDays">有效天數</label>
+          <input type="text" id="expireDays" placeholder="例：7">
+        </div>
+      </div>
+      <p style="font-size:12px; color:var(--ink-light); margin-top:10px;">
+        ⏱ 系統每分鐘自動掃描並刪除已過期條碼，無需手動操作。
+      </p>
+    </div>
+    <div id="barcodePreviewBox" class="barcode-preview">
+      <h3 id="previewName">品項名稱</h3>
+      <p id="previewDiscount"></p>
+      <svg id="previewSvg"></svg>
+      <div class="preview-actions">
+        <button class="btn btn-primary" onclick="saveBarcode()">✅ 儲存條碼</button>
+        <button class="btn btn-secondary" onclick="downloadBarcode()">⬇️ 下載圖片</button>
+      </div>
+    </div>
+    <div id="formError" style="display:none; color:var(--red); font-size:13px; margin-top:8px; padding:10px 14px; background:var(--red-light); border-radius:8px;"></div>
+    <div style="display:flex; gap:10px; margin-top:4px;">
+      <button class="btn btn-primary" onclick="generateAndPreview()" style="flex:1;">🔃 生成條碼預覽</button>
+      <button class="btn btn-secondary" onclick="clearForm()">清除</button>
+    </div>
+  </div>
+
+  <!-- ── PHOTO TAB ── -->
+  <div class="tab-panel" id="tab-photo">
+    <div class="card">
+      <div class="card-title">上傳條碼照片</div>
+      <p style="font-size:13px; color:var(--ink-mid); margin-bottom:14px; line-height:1.6;">
+        直接上傳條碼截圖或照片，以圖片方式儲存至條碼清單，方便對著螢幕給店員掃描。
+      </p>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="photoFileInput" accept="image/*" onchange="handlePhotoUpload(event)">
+        <div class="upload-zone-icon">📷</div>
+        <p>點擊選擇照片，或拖曳圖片至此</p>
+        <small>支援 JPG、PNG、GIF、WEBP，圖片儲存於本機瀏覽器</small>
+      </div>
+
+      <div class="photo-preview-wrap" id="photoPreviewWrap">
+        <img id="photoPreviewImg" src="" alt="條碼預覽">
+        <div class="photo-preview-actions">
+          <button class="btn btn-secondary btn-sm" onclick="rePickPhoto()">🔄 重新選擇</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="photoInfoCard" style="display:none">
+      <div class="card-title">照片資訊</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="photoItemName">品項名稱 *</label>
+          <input type="text" id="photoItemName" placeholder="例：超商咖啡優惠券">
+        </div>
+        <div class="form-group">
+          <label for="photoDiscount">優惠說明（選填）</label>
+          <input type="text" id="photoDiscount" placeholder="例：買一送一">
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="photoExpireCard" style="display:none">
+      <div class="card-title">有效期限設定</div>
+      <div class="form-grid three">
+        <div class="form-group">
+          <label for="photoExpireMode">到期方式</label>
+          <select id="photoExpireMode" onchange="togglePhotoExpireFields()">
+            <option value="permanent">永久有效</option>
+            <option value="datetime">指定到期時間</option>
+            <option value="duration">設定有效天數</option>
+          </select>
+        </div>
+        <div class="form-group" id="photoDatetimeGroup" style="display:none">
+          <label for="photoExpireDatetime">到期日期時間</label>
+          <input type="datetime-local" id="photoExpireDatetime">
+        </div>
+        <div class="form-group" id="photoDurationGroup" style="display:none">
+          <label for="photoExpireDays">有效天數</label>
+          <input type="text" id="photoExpireDays" placeholder="例：7">
+        </div>
+      </div>
+    </div>
+
+    <div id="photoFormError" style="display:none; color:var(--red); font-size:13px; margin-bottom:12px; padding:10px 14px; background:var(--red-light); border-radius:8px;"></div>
+
+    <div id="photoSaveRow" style="display:none; gap:10px; display:none;">
+      <button class="btn btn-primary" onclick="savePhotoBarcode()" style="flex:1;">✅ 儲存至條碼清單</button>
+      <button class="btn btn-secondary" onclick="clearPhotoForm()">清除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Delete Modal ── -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <h2>刪除確認</h2>
+    <p id="deleteModalMsg">確定要刪除這個條碼嗎？此操作無法復原。</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('deleteModal')">取消</button>
+      <button class="btn btn-danger" id="deleteConfirmBtn">刪除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SCAN FULLSCREEN ── -->
+<div class="scan-overlay" id="scanOverlay">
+  <div class="screen-flash" id="screenFlash"></div>
+  <div class="scan-header">
+    <div class="scan-title">
+      <h2 id="scanName">條碼</h2>
+      <p id="scanDisc"></p>
+    </div>
+    <button class="scan-close" onclick="closeScan()">✕</button>
+  </div>
+  <div class="scan-content">
+    <div class="scan-barcode-box" id="scanBarcodeBox">
+      <svg id="scanSvg" style="display:none"></svg>
+      <img id="scanImg" src="" alt="" style="display:none">
+    </div>
+  </div>
+  <div class="scan-footer">
+    <div class="scan-expire" id="scanExpire"></div>
+    <div class="scan-brightness">
+      <label>亮度</label>
+      <input type="range" min="20" max="100" value="100" oninput="setBrightness(this.value)">
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<!-- ── Footer ── -->
+<footer class="site-footer">
+  <div class="footer-inner">
+    <span style="color:var(--ink-light);">Made with ❤️ by</span>
+    <span class="footer-badge">🌭 熱狗怪</span>
+  </div>
+</footer>
+
+<script>
+const STORAGE_KEY = 'barcode_manager_v2';
+let items = [];
+let deleteTarget = null;
+let currentPhotoDataUrl = null;
+
+// ── Init ──
+function init() {
+  loadItems();
+  autoCleanExpired();
+  renderList();
+  setInterval(() => { autoCleanExpired(); renderList(); updateHeader(); }, 60000);
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  document.getElementById('expireDatetime').value = toLocalDatetimeInput(d);
+  document.getElementById('photoExpireDatetime').value = toLocalDatetimeInput(d);
+  setupDragDrop();
+}
+
+function toLocalDatetimeInput(date) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// ── Storage ──
+function loadItems() {
+  try { items = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+  catch { items = []; }
+}
+function saveItems() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  updateHeader();
+}
+
+// ── Tab ──
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    const names = ['list','add','photo'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── Expire helpers ──
+function getExpireStatus(item) {
+  if (!item.expireAt) return 'permanent';
+  const now = Date.now();
+  const exp = new Date(item.expireAt).getTime();
+  if (now >= exp) return 'expired';
+  if (exp - now <= 86400000 * 3) return 'expiring';
+  return 'active';
+}
+function formatExpireLabel(item) {
+  if (!item.expireAt) return '永久有效';
+  const diff = new Date(item.expireAt).getTime() - Date.now();
+  if (diff <= 0) return '已過期';
+  const days = Math.floor(diff / 86400000);
+  const hours = Math.floor((diff % 86400000) / 3600000);
+  const mins  = Math.floor((diff % 3600000) / 60000);
+  let label = '';
+  if (days > 0) label += `${days} 天 `;
+  if (days < 3) {
+    if (hours > 0) label += `${hours} 小時 `;
+    if (days === 0 && mins > 0) label += `${mins} 分鐘 `;
+  }
+  return `剩餘 ${label.trim()}`;
+}
+function expirePercent(item) {
+  if (!item.expireAt || !item.createdAt) return 100;
+  const total = new Date(item.expireAt).getTime() - new Date(item.createdAt).getTime();
+  const elapsed = Date.now() - new Date(item.createdAt).getTime();
+  if (total <= 0) return 100;
+  return Math.max(0, Math.min(100, 100 - (elapsed / total * 100)));
+}
+function autoCleanExpired() {
+  const before = items.length;
+  items = items.filter(item => !item.expireAt || new Date(item.expireAt).getTime() > Date.now());
+  if (items.length < before) { saveItems(); showToast(`已自動移除 ${before - items.length} 筆過期條碼`, 'error'); }
+}
+
+// ── Generate barcode SVG ──
+function generateBarcode(svgId, value, format) {
+  JsBarcode('#' + svgId, value, {
+    format, width: 2.2, height: 80,
+    displayValue: true, fontSize: 13,
+    margin: 12, lineColor: '#1A1A1A', background: '#FFFFFF'
+  });
+}
+
+// ── Live preview (add tab) ──
+function livePreview() {
+  const value = document.getElementById('barcodeValue').value.trim();
+  const format = document.getElementById('barcodeFormat').value;
+  const name = document.getElementById('itemName').value.trim();
+  const disc = document.getElementById('discountLabel').value.trim();
+  if (!value || !name) return;
+  try {
+    generateBarcode('previewSvg', value, format);
+    document.getElementById('previewName').textContent = name;
+    document.getElementById('previewDiscount').textContent = disc;
+    document.getElementById('barcodePreviewBox').classList.add('show');
+    document.getElementById('formError').style.display = 'none';
+  } catch(e) {}
+}
+
+function generateAndPreview() {
+  const name = document.getElementById('itemName').value.trim();
+  const value = document.getElementById('barcodeValue').value.trim();
+  const format = document.getElementById('barcodeFormat').value;
+  const disc = document.getElementById('discountLabel').value.trim();
+  if (!name) { showFormError('請輸入品項名稱'); return; }
+  if (!value) { showFormError('請輸入條碼數字'); return; }
+  try {
+    generateBarcode('previewSvg', value, format);
+    document.getElementById('previewName').textContent = name;
+    document.getElementById('previewDiscount').textContent = disc;
+    document.getElementById('barcodePreviewBox').classList.add('show');
+    document.getElementById('formError').style.display = 'none';
+  } catch(e) {
+    showFormError('條碼格式錯誤：請確認數字位數是否符合所選格式（EAN-13 需 13 碼，EAN-8 需 8 碼，UPC 需 12 碼）');
+  }
+}
+function showFormError(msg) {
+  const el = document.getElementById('formError');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ── Save (add tab) ──
+function saveBarcode() {
+  const name   = document.getElementById('itemName').value.trim();
+  const value  = document.getElementById('barcodeValue').value.trim();
+  const format = document.getElementById('barcodeFormat').value;
+  const disc   = document.getElementById('discountLabel').value.trim();
+  const mode   = document.getElementById('expireMode').value;
+  if (!name || !value) { showFormError('請填寫品項名稱與條碼數字'); return; }
+  let expireAt = null;
+  if (mode === 'datetime') {
+    const dt = document.getElementById('expireDatetime').value;
+    if (!dt) { showFormError('請選擇到期時間'); return; }
+    expireAt = new Date(dt).toISOString();
+  } else if (mode === 'duration') {
+    const days = parseInt(document.getElementById('expireDays').value);
+    if (isNaN(days) || days < 1) { showFormError('請輸入有效天數（至少 1 天）'); return; }
+    const d = new Date(); d.setDate(d.getDate() + days);
+    expireAt = d.toISOString();
+  }
+  items.unshift({ id: Date.now().toString(), name, value, format, disc, expireAt, createdAt: new Date().toISOString(), type: 'barcode' });
+  saveItems();
+  showToast('條碼已儲存！', 'success');
+  clearForm(); switchTab('list'); renderList();
+}
+
+function toggleExpireFields() {
+  const mode = document.getElementById('expireMode').value;
+  document.getElementById('datetimeGroup').style.display = mode === 'datetime' ? 'flex' : 'none';
+  document.getElementById('durationGroup').style.display = mode === 'duration' ? 'flex' : 'none';
+}
+function clearForm() {
+  ['itemName','barcodeValue','discountLabel','expireDays'].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('barcodeFormat').value = 'CODE128';
+  document.getElementById('expireMode').value = 'permanent';
+  toggleExpireFields();
+  document.getElementById('barcodePreviewBox').classList.remove('show');
+  document.getElementById('formError').style.display = 'none';
+}
+
+// ── Download (add tab) ──
+function downloadBarcode() {
+  const svg = document.getElementById('previewSvg');
+  const name = document.getElementById('itemName').value.trim() || 'barcode';
+  downloadSvg(svg, name);
+}
+function downloadSvg(svgEl, filename) {
+  const svgStr = new XMLSerializer().serializeToString(svgEl);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g,'_') + '.svg';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════
+// ── PHOTO UPLOAD ──
+// ═══════════════════════════════════════════════
+function setupDragDrop() {
+  const zone = document.getElementById('uploadZone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) processPhotoFile(file);
+    else showToast('請上傳圖片檔案', 'error');
+  });
+}
+
+function handlePhotoUpload(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  processPhotoFile(file);
+}
+
+function processPhotoFile(file) {
+  // Check size (limit 2MB to keep localStorage manageable)
+  if (file.size > 2 * 1024 * 1024) {
+    showToast('圖片過大，請選擇 2MB 以內的圖片', 'error'); return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    currentPhotoDataUrl = e.target.result;
+    document.getElementById('photoPreviewImg').src = currentPhotoDataUrl;
+    document.getElementById('photoPreviewWrap').style.display = 'block';
+    document.getElementById('uploadZone').style.display = 'none';
+    document.getElementById('photoInfoCard').style.display = 'block';
+    document.getElementById('photoExpireCard').style.display = 'block';
+    document.getElementById('photoSaveRow').style.display = 'flex';
+  };
+  reader.readAsDataURL(file);
+}
+
+function rePickPhoto() {
+  clearPhotoForm();
+}
+
+function clearPhotoForm() {
+  currentPhotoDataUrl = null;
+  document.getElementById('photoFileInput').value = '';
+  document.getElementById('photoPreviewImg').src = '';
+  document.getElementById('photoPreviewWrap').style.display = 'none';
+  document.getElementById('uploadZone').style.display = 'block';
+  document.getElementById('photoInfoCard').style.display = 'none';
+  document.getElementById('photoExpireCard').style.display = 'none';
+  document.getElementById('photoSaveRow').style.display = 'none';
+  document.getElementById('photoItemName').value = '';
+  document.getElementById('photoDiscount').value = '';
+  document.getElementById('photoExpireMode').value = 'permanent';
+  togglePhotoExpireFields();
+  document.getElementById('photoFormError').style.display = 'none';
+}
+
+function togglePhotoExpireFields() {
+  const mode = document.getElementById('photoExpireMode').value;
+  document.getElementById('photoDatetimeGroup').style.display = mode === 'datetime' ? 'flex' : 'none';
+  document.getElementById('photoDurationGroup').style.display = mode === 'duration' ? 'flex' : 'none';
+}
+
+function savePhotoBarcode() {
+  const name = document.getElementById('photoItemName').value.trim();
+  const disc = document.getElementById('photoDiscount').value.trim();
+  const mode = document.getElementById('photoExpireMode').value;
+  const errEl = document.getElementById('photoFormError');
+
+  if (!name) { errEl.textContent = '請輸入品項名稱'; errEl.style.display = 'block'; return; }
+  if (!currentPhotoDataUrl) { errEl.textContent = '請先上傳條碼照片'; errEl.style.display = 'block'; return; }
+
+  let expireAt = null;
+  if (mode === 'datetime') {
+    const dt = document.getElementById('photoExpireDatetime').value;
+    if (!dt) { errEl.textContent = '請選擇到期時間'; errEl.style.display = 'block'; return; }
+    expireAt = new Date(dt).toISOString();
+  } else if (mode === 'duration') {
+    const days = parseInt(document.getElementById('photoExpireDays').value);
+    if (isNaN(days) || days < 1) { errEl.textContent = '請輸入有效天數（至少 1 天）'; errEl.style.display = 'block'; return; }
+    const d = new Date(); d.setDate(d.getDate() + days);
+    expireAt = d.toISOString();
+  }
+
+  try {
+    items.unshift({
+      id: Date.now().toString(),
+      name, disc, expireAt,
+      createdAt: new Date().toISOString(),
+      type: 'photo',
+      photoData: currentPhotoDataUrl,
+      value: '', format: 'PHOTO'
+    });
+    saveItems();
+    showToast('條碼照片已儲存！', 'success');
+    clearPhotoForm();
+    switchTab('list');
+    renderList();
+  } catch(e) {
+    errEl.textContent = '儲存失敗：可能是圖片太大，請換較小的圖片試試';
+    errEl.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════════════════
+// ── RENDER LIST ──
+// ═══════════════════════════════════════════════
+function renderList() {
+  const query = document.getElementById('searchInput').value.toLowerCase();
+  const filter = document.getElementById('filterSelect').value;
+  const grid = document.getElementById('itemGrid');
+
+  let visible = items.filter(item => {
+    const status = getExpireStatus(item);
+    const matchSearch = item.name.toLowerCase().includes(query) || (item.value||'').includes(query);
+    const matchFilter = filter === 'all' ? true : filter === 'permanent' ? !item.expireAt : status === filter;
+    return matchSearch && matchFilter;
+  });
+
+  if (visible.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <rect x="3" y="4" width="4" height="16" rx="1"/><rect x="9" y="4" width="2" height="16" rx="1"/>
+        <rect x="13" y="4" width="4" height="16" rx="1"/><rect x="19" y="4" width="2" height="16" rx="1"/>
+      </svg>
+      <p>${query ? '找不到符合的條碼' : '尚無條碼，請點「新增條碼」或「上傳照片」開始'}</p>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = visible.map(item => {
+    const status = getExpireStatus(item);
+    const expLabel = formatExpireLabel(item);
+    const pct = expirePercent(item);
+    const barColor = status === 'expired' ? '#ccc' : status === 'expiring' ? '#D45D00' : '#1A7F37';
+    const tagMap = {
+      active: '<span class="tag tag-active">有效中</span>',
+      expiring: '<span class="tag tag-expiring">即將到期</span>',
+      expired: '<span class="tag tag-expired">已過期</span>',
+      permanent: '<span class="tag tag-active">永久有效</span>',
+    };
+    const expireInfo = item.expireAt
+      ? `<span class="expire-info ${status==='expiring'?'warn':status==='expired'?'expired':''}">⏱ ${expLabel}（到期：${new Date(item.expireAt).toLocaleString('zh-TW')}）</span>`
+      : `<span class="expire-info">♾️ 永久有效</span>`;
+
+    const isPhoto = item.type === 'photo';
+
+    // Barcode area content
+    const barcodeAreaContent = isPhoto
+      ? `<img src="${item.photoData}" alt="${escHtml(item.name)}" style="max-width:100%; max-height:180px; object-fit:contain; border-radius:6px;">`
+      : `<svg id="barcode-svg-${item.id}"></svg>`;
+
+    // Action buttons
+    const scanBtn = `<button class="btn btn-primary btn-sm" title="放大給店員掃描" onclick="openScan('${item.id}')">🔍 掃描</button>`;
+    const toggleBtn = !isPhoto
+      ? `<button class="btn btn-secondary btn-sm btn-icon" title="顯示條碼" onclick="toggleBarcode('${item.id}','${escAttr(item.value)}','${item.format}')">📊</button>`
+      : `<button class="btn btn-secondary btn-sm btn-icon" title="顯示條碼" onclick="toggleBarcodePhoto('${item.id}')">🖼️</button>`;
+    const dlBtn = !isPhoto
+      ? `<button class="btn btn-secondary btn-sm btn-icon" title="下載" onclick="downloadItem('${item.id}','${escAttr(item.name)}','${escAttr(item.value)}','${item.format}')">⬇️</button>`
+      : '';
+    const copyBtn = item.value
+      ? `<button class="btn btn-secondary btn-sm btn-icon" title="複製條碼數字" onclick="copyValue('${escAttr(item.value)}')">📋</button>` : '';
+    const delBtn = `<button class="btn btn-danger btn-sm btn-icon" title="刪除" onclick="confirmDelete('${item.id}','${escAttr(item.name)}')">🗑️</button>`;
+
+    return `<div class="item-card" id="card-${item.id}">
+      <div class="expire-bar-wrap"><div class="expire-bar" style="width:${item.expireAt?pct:100}%; background:${barColor};"></div></div>
+      <div class="item-card-header">
+        <div>
+          <div class="item-name">${escHtml(item.name)}</div>
+          ${item.disc ? `<div class="item-meta">🏷️ ${escHtml(item.disc)}</div>` : ''}
+          <div class="item-tags">
+            <span class="tag ${isPhoto?'tag-photo':'tag-format'}">${isPhoto?'📷 照片':item.format}</span>
+            ${tagMap[status]}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          ${scanBtn}
+          <div style="font-size:11px; color:var(--ink-light); margin-top:6px;">新增 ${new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
+        </div>
+      </div>
+      <div class="item-barcode-area" id="barcode-area-${item.id}">${barcodeAreaContent}</div>
+      <div class="item-footer">
+        ${expireInfo}
+        <div class="item-actions">${toggleBtn}${dlBtn}${copyBtn}${delBtn}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Toggle barcode display ──
+function toggleBarcode(id, value, format) {
+  const area = document.getElementById('barcode-area-' + id);
+  if (area.classList.contains('show')) { area.classList.remove('show'); return; }
+  area.classList.add('show');
+  try { generateBarcode('barcode-svg-' + id, value, format); }
+  catch(e) { area.innerHTML = '<p style="color:var(--red);font-size:13px;">條碼生成失敗</p>'; }
+}
+function toggleBarcodePhoto(id) {
+  const area = document.getElementById('barcode-area-' + id);
+  area.classList.toggle('show');
+}
+
+// ── Download item ──
+function downloadItem(id, name, value, format) {
+  const tempSvg = document.createElement('svg');
+  tempSvg.id = 'temp-dl-' + id;
+  tempSvg.style.cssText = 'position:absolute;left:-9999px';
+  document.body.appendChild(tempSvg);
+  try {
+    JsBarcode('#temp-dl-' + id, value, { format, width:2.2, height:80, displayValue:true, fontSize:13, margin:12, lineColor:'#1A1A1A', background:'#FFFFFF' });
+    downloadSvg(tempSvg, name);
+  } catch(e) { showToast('下載失敗：條碼格式錯誤', 'error'); }
+  document.body.removeChild(tempSvg);
+}
+
+function copyValue(val) {
+  navigator.clipboard.writeText(val).then(() => showToast('條碼數字已複製！', 'success'));
+}
+
+// ── Delete ──
+function confirmDelete(id, name) {
+  deleteTarget = id;
+  document.getElementById('deleteModalMsg').textContent = `確定要刪除「${name}」嗎？此操作無法復原。`;
+  document.getElementById('deleteConfirmBtn').onclick = () => {
+    items = items.filter(i => i.id !== deleteTarget);
+    saveItems(); renderList();
+    closeModal('deleteModal');
+    showToast('條碼已刪除', 'error');
+  };
+  document.getElementById('deleteModal').classList.add('show');
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  deleteTarget = null;
+}
+
+// ═══════════════════════════════════════════════
+// ── SCAN FULLSCREEN ──
+// ═══════════════════════════════════════════════
+function openScan(id) {
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  const overlay = document.getElementById('scanOverlay');
+  const svgEl   = document.getElementById('scanSvg');
+  const imgEl   = document.getElementById('scanImg');
+  const box     = document.getElementById('scanBarcodeBox');
+
+  document.getElementById('scanName').textContent = item.name;
+  document.getElementById('scanDisc').textContent = item.disc || '';
+
+  // Expire info
+  const expLabel = item.expireAt
+    ? `⏱ ${formatExpireLabel(item)}（到期：${new Date(item.expireAt).toLocaleString('zh-TW')}）`
+    : '♾️ 永久有效';
+  document.getElementById('scanExpire').textContent = expLabel;
+
+  if (item.type === 'photo') {
+    svgEl.style.display = 'none';
+    imgEl.style.display = 'block';
+    imgEl.src = item.photoData;
+  } else {
+    imgEl.style.display = 'none';
+    svgEl.style.display = 'block';
+    svgEl.innerHTML = '';
+    try {
+      JsBarcode('#scanSvg', item.value, {
+        format: item.format, width: 3, height: 140,
+        displayValue: true, fontSize: 16,
+        margin: 16, lineColor: '#1A1A1A', background: '#FFFFFF'
+      });
+    } catch(e) {
+      svgEl.innerHTML = '<text x="10" y="30" fill="red">條碼生成失敗</text>';
+    }
+  }
+
+  setBrightness(100);
+  overlay.classList.add('show');
+  // Try fullscreen
+  if (overlay.requestFullscreen) overlay.requestFullscreen().catch(()=>{});
+  else if (overlay.webkitRequestFullscreen) overlay.webkitRequestFullscreen();
+  // Keep screen on (if supported)
+  keepScreenOn();
+}
+
+function closeScan() {
+  document.getElementById('scanOverlay').classList.remove('show');
+  if (document.fullscreenElement) document.exitFullscreen().catch(()=>{});
+  releaseScreenLock();
+}
+
+function setBrightness(val) {
+  document.getElementById('scanBarcodeBox').style.filter = `brightness(${val}%)`;
+}
+
+// Screen Wake Lock
+let wakeLock = null;
+async function keepScreenOn() {
+  try {
+    if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); }
+  } catch(e) {}
+}
+function releaseScreenLock() {
+  if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
+}
+
+// Close scan on ESC
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeScan();
+});
+
+// ── Clean expired ──
+function cleanExpired() {
+  const before = items.length;
+  autoCleanExpired(); renderList();
+  const removed = before - items.length;
+  showToast(removed > 0 ? `已清除 ${removed} 筆過期條碼` : '目前沒有過期條碼', removed > 0 ? 'error' : '');
+}
+
+// ── Print ──
+function printAll() {
+  items.forEach(item => {
+    const area = document.getElementById('barcode-area-' + item.id);
+    if (area && !area.classList.contains('show')) {
+      area.classList.add('show');
+      if (item.type !== 'photo') {
+        try { generateBarcode('barcode-svg-' + item.id, item.value, item.format); } catch(e) {}
+      }
+    }
+  });
+  setTimeout(() => window.print(), 300);
+}
+
+// ── Header ──
+function updateHeader() {
+  const active = items.filter(i => { const s = getExpireStatus(i); return s==='active'||s==='expiring'||s==='permanent'; }).length;
+  document.getElementById('active-count').textContent = active;
+}
+
+// ── Toast ──
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type ? ' ' + type : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── Escape helpers ──
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(str) {
+  return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
+}
+
+// ── Modal overlay click ──
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal('deleteModal');
+});
+document.getElementById('scanOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeScan();
+});
+
+// ── Boot ──
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('itemName').addEventListener('input', livePreview);
+  document.getElementById('discountLabel').addEventListener('input', livePreview);
+  document.getElementById('barcodeFormat').addEventListener('change', livePreview);
+  init();
+});
+</script>
+</body>
+</html>
