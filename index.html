@@ -794,7 +794,6 @@ async function saveBarcode() {
     expireAt = d.toISOString();
   }
 
-  // ⚠️ 欄位結構完美契合 Postgres 資料庫 
   const newItem = { 
     id: Date.now().toString(), 
     name, 
@@ -884,6 +883,7 @@ function processPhotoFile(file) {
   reader.readAsDataURL(file);
 }
 
+// 重新選擇
 function rePickPhoto() {
   clearPhotoForm();
 }
@@ -911,7 +911,7 @@ function togglePhotoExpireFields() {
   document.getElementById('photoDurationGroup').style.display = mode === 'duration' ? 'flex' : 'none';
 }
 
-// ── 儲存照片型條碼（對齊底線欄位名稱、使用符合 RLS 的 public/ 資料夾） ──
+// ── 儲存照片型條碼 ──
 async function savePhotoBarcode() {
   const name = document.getElementById('photoItemName').value.trim();
   const disc = document.getElementById('photoDiscount').value.trim();
@@ -940,7 +940,7 @@ async function savePhotoBarcode() {
     // 1. 上傳圖檔至 Storage
     const fileExt = currentPhotoFile.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
-    const filePath = `public/${fileName}`; // 嚴格配合 RLS 規範
+    const filePath = `public/${fileName}`;
 
     const { data: uploadData, error: uploadError } = await supabaseClient.storage
       .from('barcode-images')
@@ -955,7 +955,7 @@ async function savePhotoBarcode() {
     
     const publicImageUrl = urlData.publicUrl;
 
-    // 3. 寫入資料庫（全面修正為底線欄位名稱）
+    // 3. 寫入資料庫
     const newItem = {
       id: Date.now().toString(),
       name, 
@@ -991,7 +991,7 @@ function renderList() {
   let visible = items.filter(item => {
     const status = getExpireStatus(item);
     const matchSearch = item.name.toLowerCase().includes(query) || (item.value||'').includes(query);
-    const matchFilter = filter === 'all' ? true : filter === 'permanent' ? !item.expire_at : status === filter; // 修正為 expire_at
+    const matchFilter = filter === 'all' ? true : filter === 'permanent' ? !item.expire_at : status === filter; 
     return matchSearch && matchFilter;
   });
 
@@ -1018,14 +1018,12 @@ function renderList() {
       permanent: '<span class="tag tag-active">永久有效</span>',
     };
     
-    // 修正為 expire_at
     const expireInfo = item.expire_at
       ? `<span class="expire-info ${status==='expiring'?'warn':status==='expired'?'expired':''}">⏱ ${expLabel}（到期：${new Date(item.expire_at).toLocaleString('zh-TW')}）</span>`
       : `<span class="expire-info">♾️ 永久有效</span>`;
 
     const isPhoto = item.type === 'photo';
 
-    // 修正為 photo_data
     const barcodeAreaContent = isPhoto
       ? `<img src="${item.photo_data}" alt="${escHtml(item.name)}" style="max-width:100%; max-height:180px; object-fit:contain; border-radius:6px;">`
       : `<svg id="barcode-svg-${item.id}"></svg>`;
@@ -1041,7 +1039,6 @@ function renderList() {
       ? `<button class="btn btn-secondary btn-sm btn-icon" title="複製條碼數字" onclick="copyValue('${escAttr(item.value)}')">📋</button>` : '';
     const delBtn = `<button class="btn btn-danger btn-sm btn-icon" title="刪除" onclick="confirmDelete('${item.id}','${escAttr(item.name)}')">🗑️</button>`;
 
-    // 修正為 created_at
     return `<div class="item-card" id="card-${item.id}">
       <div class="expire-bar-wrap"><div class="expire-bar" style="width:${item.expire_at?pct:100}%; background:${barColor};"></div></div>
       <div class="item-card-header">
@@ -1113,7 +1110,8 @@ function confirmDelete(id, name) {
       return;
     }
 
-    items = items.filter(i => i.id !== deleteTarget);
+    // 修復處：強制將比對兩端轉為字串，確保過濾成功
+    items = items.filter(i => String(i.id) !== String(deleteTarget));
     updateHeader(); renderList(); closeModal('deleteModal');
     showToast('條碼已自雲端安全刪除', 'error');
   };
@@ -1124,10 +1122,14 @@ function closeModal(id) {
   deleteTarget = null;
 }
 
-// ── 燈箱放大細節（對齊底線欄位名稱） ──
+// ── 燈箱放大細節（修復型態判定錯誤） ──
 function openScan(id) {
-  const item = items.find(i => i.id === id);
-  if (!item) return;
+  // 修復處：強制將兩者轉為 String 進行安全比對，防止型態不匹配導致找不到項目
+  const item = items.find(i => String(i.id) === String(id));
+  if (!item) {
+    console.error("找不到該條碼，傳入的 ID 為:", id);
+    return;
+  }
 
   const overlay = document.getElementById('scanOverlay');
   const svgEl   = document.getElementById('scanSvg');
@@ -1136,7 +1138,6 @@ function openScan(id) {
   document.getElementById('scanName').textContent = item.name;
   document.getElementById('scanDisc').textContent = item.disc || '';
 
-  // 修正為 expire_at
   const expLabel = item.expire_at
     ? `⏱ ${formatExpireLabel(item)}（到期：${new Date(item.expire_at).toLocaleString('zh-TW')}）`
     : '♾️ 永久有效';
@@ -1145,7 +1146,7 @@ function openScan(id) {
   if (item.type === 'photo') {
     svgEl.style.display = 'none';
     imgEl.style.display = 'block';
-    imgEl.src = item.photo_data; // 修正為 photo_data
+    imgEl.src = item.photo_data; 
   } else {
     imgEl.style.display = 'none';
     svgEl.style.display = 'block';
@@ -1216,7 +1217,7 @@ function printAll() {
   setTimeout(() => window.print(), 300);
 }
 
-// ── 頂部統計數據更新（對齊底線欄位名稱） ──
+// ── 頂部統計數據更新 ──
 function updateHeader() {
   const active = items.filter(i => { const s = getExpireStatus(i); return s==='active'||s==='expiring'||s==='permanent'; }).length;
   document.getElementById('active-count').textContent = active;
