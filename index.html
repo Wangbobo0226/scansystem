@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>優惠條碼管理系統</title>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --red: #E8192C;
@@ -316,7 +317,6 @@
     font-size: 20px; font-weight: 700; color: var(--ink);
     margin-bottom: 4px; margin-top: 0;
   }
-  .scan-disc { font-size: 14px; color: var(--ink-mid); margin-bottom: 18px; }
   .scan-footer {
     position: absolute; bottom: 0; left: 0; right: 0;
     padding: 16px 24px; background: rgba(0,0,0,0.6);
@@ -404,7 +404,7 @@
       </div>
       <div>
         <h1>優惠條碼管理系統</h1>
-        <p>超商優惠條碼產生與追蹤</p>
+        <p>超商優惠條碼產生與追蹤 (Supabase 雲端版)</p>
       </div>
     </div>
     <div class="header-stats">
@@ -421,7 +421,6 @@
     <button class="tab-btn" onclick="switchTab('photo')">📷 上傳照片</button>
   </div>
 
-  <!-- ── LIST TAB ── -->
   <div class="tab-panel active" id="tab-list">
     <div class="list-toolbar">
       <div class="search-wrap">
@@ -441,7 +440,6 @@
     <div class="item-grid" id="itemGrid"></div>
   </div>
 
-  <!-- ── ADD TAB ── -->
   <div class="tab-panel" id="tab-add">
     <div class="card">
       <div class="card-title">條碼資訊</div>
@@ -491,7 +489,7 @@
         </div>
       </div>
       <p style="font-size:12px; color:var(--ink-light); margin-top:10px;">
-        ⏱ 系統每分鐘自動掃描並刪除已過期條碼，無需手動操作。
+        ⏱ 系統將自動掃描過期條碼，維持雲端資料庫整潔。
       </p>
     </div>
     <div id="barcodePreviewBox" class="barcode-preview">
@@ -510,19 +508,18 @@
     </div>
   </div>
 
-  <!-- ── PHOTO TAB ── -->
   <div class="tab-panel" id="tab-photo">
     <div class="card">
       <div class="card-title">上傳條碼照片</div>
       <p style="font-size:13px; color:var(--ink-mid); margin-bottom:14px; line-height:1.6;">
-        直接上傳條碼截圖或照片，以圖片方式儲存至條碼清單，方便對著螢幕給店員掃描。
+        直接上傳條碼截圖或照片，以圖片方式儲存至雲端條碼清單，方便對著螢幕給店員掃描。
       </p>
 
       <div class="upload-zone" id="uploadZone">
         <input type="file" id="photoFileInput" accept="image/*" onchange="handlePhotoUpload(event)">
         <div class="upload-zone-icon">📷</div>
         <p>點擊選擇照片，或拖曳圖片至此</p>
-        <small>支援 JPG、PNG、GIF、WEBP，圖片儲存於本機瀏覽器</small>
+        <small>支援 JPG、PNG、GIF、WEBP，圖片將安全地上傳至雲端 Storage</small>
       </div>
 
       <div class="photo-preview-wrap" id="photoPreviewWrap">
@@ -571,14 +568,13 @@
 
     <div id="photoFormError" style="display:none; color:var(--red); font-size:13px; margin-bottom:12px; padding:10px 14px; background:var(--red-light); border-radius:8px;"></div>
 
-    <div id="photoSaveRow" style="display:none; gap:10px; display:none;">
+    <div id="photoSaveRow" style="display:none; gap:10px;">
       <button class="btn btn-primary" onclick="savePhotoBarcode()" style="flex:1;">✅ 儲存至條碼清單</button>
       <button class="btn btn-secondary" onclick="clearPhotoForm()">清除</button>
     </div>
   </div>
 </div>
 
-<!-- ── Delete Modal ── -->
 <div class="modal-overlay" id="deleteModal">
   <div class="modal">
     <h2>刪除確認</h2>
@@ -590,7 +586,6 @@
   </div>
 </div>
 
-<!-- ── SCAN FULLSCREEN ── -->
 <div class="scan-overlay" id="scanOverlay">
   <div class="screen-flash" id="screenFlash"></div>
   <div class="scan-header">
@@ -615,10 +610,8 @@
   </div>
 </div>
 
-<!-- ── Toast ── -->
 <div class="toast" id="toast"></div>
 
-<!-- ── Footer ── -->
 <footer class="site-footer">
   <div class="footer-inner">
     <span style="color:var(--ink-light);">Made with ❤️ by</span>
@@ -627,17 +620,24 @@
 </footer>
 
 <script>
-const STORAGE_KEY = 'barcode_manager_v2';
+// ── Supabase 初始化設定 ──
+const SUPABASE_URL = 'https://imixxdsmrlziowuspkbe.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltaXh4ZHNtcmx6aW93dXNwa2JlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE1NjY4MjIsImV4cCI6MjA5NzE0MjgyMn0.2Nw9vJlwFLD5jJVcIeYQOQHjfIZerXfPKieZjW3FzYk';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 let items = [];
 let deleteTarget = null;
-let currentPhotoDataUrl = null;
+let currentPhotoDataUrl = null; // 本地預覽用
+let currentPhotoFile = null;    // 上傳至 Storage 用
 
 // ── Init ──
-function init() {
-  loadItems();
-  autoCleanExpired();
+async function init() {
+  await loadItems();
+  await autoCleanExpired();
   renderList();
-  setInterval(() => { autoCleanExpired(); renderList(); updateHeader(); }, 60000);
+  // 每分鐘自動同步雲端與清理過期項目
+  setInterval(async () => { await loadItems(); await autoCleanExpired(); renderList(); }, 60000);
+  
   const d = new Date();
   d.setDate(d.getDate() + 7);
   document.getElementById('expireDatetime').value = toLocalDatetimeInput(d);
@@ -650,17 +650,25 @@ function toLocalDatetimeInput(date) {
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// ── Storage ──
-function loadItems() {
-  try { items = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
-  catch { items = []; }
-}
-function saveItems() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+// ── 從 Supabase DB 載入資料（對齊底線欄位名稱） ──
+async function loadItems() {
+  try {
+    const { data, error } = await supabaseClient
+      .from('barcodes')
+      .select('*')
+      .order('created_at', { ascending: false }); // 修正為 created_at
+
+    if (error) throw error;
+    items = data || [];
+  } catch (err) {
+    console.error('從雲端載入資料失敗:', err.message);
+    showToast('雲端連線失敗，請確認資料庫狀態！', 'error');
+    items = [];
+  }
   updateHeader();
 }
 
-// ── Tab ──
+// ── Tab 分頁切換 ──
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach((b, i) => {
     const names = ['list','add','photo'];
@@ -670,18 +678,18 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
 }
 
-// ── Expire helpers ──
+// ── Expire helpers 到期判定（對齊底線欄位名稱） ──
 function getExpireStatus(item) {
-  if (!item.expireAt) return 'permanent';
+  if (!item.expire_at) return 'permanent'; // 修正為 expire_at
   const now = Date.now();
-  const exp = new Date(item.expireAt).getTime();
+  const exp = new Date(item.expire_at).getTime(); // 修正為 expire_at
   if (now >= exp) return 'expired';
   if (exp - now <= 86400000 * 3) return 'expiring';
   return 'active';
 }
 function formatExpireLabel(item) {
-  if (!item.expireAt) return '永久有效';
-  const diff = new Date(item.expireAt).getTime() - Date.now();
+  if (!item.expire_at) return '永久有效'; // 修正為 expire_at
+  const diff = new Date(item.expire_at).getTime() - Date.now(); // 修正為 expire_at
   if (diff <= 0) return '已過期';
   const days = Math.floor(diff / 86400000);
   const hours = Math.floor((diff % 86400000) / 3600000);
@@ -695,19 +703,31 @@ function formatExpireLabel(item) {
   return `剩餘 ${label.trim()}`;
 }
 function expirePercent(item) {
-  if (!item.expireAt || !item.createdAt) return 100;
-  const total = new Date(item.expireAt).getTime() - new Date(item.createdAt).getTime();
-  const elapsed = Date.now() - new Date(item.createdAt).getTime();
+  if (!item.expire_at || !item.created_at) return 100; // 修正為 expire_at 與 created_at
+  const total = new Date(item.expire_at).getTime() - new Date(item.created_at).getTime();
+  const elapsed = Date.now() - new Date(item.created_at).getTime();
   if (total <= 0) return 100;
   return Math.max(0, Math.min(100, 100 - (elapsed / total * 100)));
 }
-function autoCleanExpired() {
-  const before = items.length;
-  items = items.filter(item => !item.expireAt || new Date(item.expireAt).getTime() > Date.now());
-  if (items.length < before) { saveItems(); showToast(`已自動移除 ${before - items.length} 筆過期條碼`, 'error'); }
+
+async function autoCleanExpired() {
+  const expiredItems = items.filter(item => item.expire_at && new Date(item.expire_at).getTime() <= Date.now()); // 修正為 expire_at
+  if (expiredItems.length > 0) {
+    const idsToDelete = expiredItems.map(i => i.id);
+    const { error } = await supabaseClient
+      .from('barcodes')
+      .delete()
+      .in('id', idsToDelete);
+    
+    if (!error) {
+      items = items.filter(item => !idsToDelete.includes(item.id));
+      updateHeader();
+      showToast(`已自動同步移除 ${expiredItems.length} 筆過期條碼`, 'error');
+    }
+  }
 }
 
-// ── Generate barcode SVG ──
+// ── 生成條碼圖片 ──
 function generateBarcode(svgId, value, format) {
   JsBarcode('#' + svgId, value, {
     format, width: 2.2, height: 80,
@@ -716,7 +736,7 @@ function generateBarcode(svgId, value, format) {
   });
 }
 
-// ── Live preview (add tab) ──
+// ── 即時預覽 ──
 function livePreview() {
   const value = document.getElementById('barcodeValue').value.trim();
   const format = document.getElementById('barcodeFormat').value;
@@ -754,8 +774,8 @@ function showFormError(msg) {
   el.textContent = msg; el.style.display = 'block';
 }
 
-// ── Save (add tab) ──
-function saveBarcode() {
+// ── 儲存數字型條碼至雲端（對齊底線欄位名稱） ──
+async function saveBarcode() {
   const name   = document.getElementById('itemName').value.trim();
   const value  = document.getElementById('barcodeValue').value.trim();
   const format = document.getElementById('barcodeFormat').value;
@@ -773,9 +793,31 @@ function saveBarcode() {
     const d = new Date(); d.setDate(d.getDate() + days);
     expireAt = d.toISOString();
   }
-  items.unshift({ id: Date.now().toString(), name, value, format, disc, expireAt, createdAt: new Date().toISOString(), type: 'barcode' });
-  saveItems();
-  showToast('條碼已儲存！', 'success');
+
+  // ⚠️ 欄位結構完美契合 Postgres 資料庫 
+  const newItem = { 
+    id: Date.now().toString(), 
+    name, 
+    value, 
+    format, 
+    disc, 
+    expire_at: expireAt, 
+    created_at: new Date().toISOString(), 
+    type: 'barcode',
+    photo_data: null
+  };
+
+  const { error } = await supabaseClient.from('barcodes').insert([newItem]);
+
+  if (error) {
+    console.error('儲存失敗:', error.message);
+    showFormError('雲端儲存失敗: ' + error.message);
+    return;
+  }
+
+  items.unshift(newItem);
+  updateHeader();
+  showToast('條碼已成功同步至雲端儲存！', 'success');
   clearForm(); switchTab('list'); renderList();
 }
 
@@ -793,7 +835,7 @@ function clearForm() {
   document.getElementById('formError').style.display = 'none';
 }
 
-// ── Download (add tab) ──
+// ── 下載圖片 ──
 function downloadBarcode() {
   const svg = document.getElementById('previewSvg');
   const name = document.getElementById('itemName').value.trim() || 'barcode';
@@ -808,9 +850,7 @@ function downloadSvg(svgEl, filename) {
   a.click(); URL.revokeObjectURL(url);
 }
 
-// ═══════════════════════════════════════════════
-// ── PHOTO UPLOAD ──
-// ═══════════════════════════════════════════════
+// ── 照片型上傳與拖曳 ──
 function setupDragDrop() {
   const zone = document.getElementById('uploadZone');
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
@@ -830,10 +870,7 @@ function handlePhotoUpload(e) {
 }
 
 function processPhotoFile(file) {
-  // Check size (limit 2MB to keep localStorage manageable)
-  if (file.size > 2 * 1024 * 1024) {
-    showToast('圖片過大，請選擇 2MB 以內的圖片', 'error'); return;
-  }
+  currentPhotoFile = file;
   const reader = new FileReader();
   reader.onload = e => {
     currentPhotoDataUrl = e.target.result;
@@ -853,6 +890,7 @@ function rePickPhoto() {
 
 function clearPhotoForm() {
   currentPhotoDataUrl = null;
+  currentPhotoFile = null;
   document.getElementById('photoFileInput').value = '';
   document.getElementById('photoPreviewImg').src = '';
   document.getElementById('photoPreviewWrap').style.display = 'none';
@@ -873,14 +911,15 @@ function togglePhotoExpireFields() {
   document.getElementById('photoDurationGroup').style.display = mode === 'duration' ? 'flex' : 'none';
 }
 
-function savePhotoBarcode() {
+// ── 儲存照片型條碼（對齊底線欄位名稱、使用符合 RLS 的 public/ 資料夾） ──
+async function savePhotoBarcode() {
   const name = document.getElementById('photoItemName').value.trim();
   const disc = document.getElementById('photoDiscount').value.trim();
   const mode = document.getElementById('photoExpireMode').value;
   const errEl = document.getElementById('photoFormError');
 
   if (!name) { errEl.textContent = '請輸入品項名稱'; errEl.style.display = 'block'; return; }
-  if (!currentPhotoDataUrl) { errEl.textContent = '請先上傳條碼照片'; errEl.style.display = 'block'; return; }
+  if (!currentPhotoFile) { errEl.textContent = '請先上傳條碼照片'; errEl.style.display = 'block'; return; }
 
   let expireAt = null;
   if (mode === 'datetime') {
@@ -895,28 +934,55 @@ function savePhotoBarcode() {
   }
 
   try {
-    items.unshift({
+    errEl.textContent = '雲端同步上傳中，請稍候...';
+    errEl.style.display = 'block'; errEl.style.background = '#eafbee'; errEl.style.color = 'var(--green)';
+
+    // 1. 上傳圖檔至 Storage
+    const fileExt = currentPhotoFile.name.split('.').pop();
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+    const filePath = `public/${fileName}`; // 嚴格配合 RLS 規範
+
+    const { data: uploadData, error: uploadError } = await supabaseClient.storage
+      .from('barcode-images')
+      .upload(filePath, currentPhotoFile);
+
+    if (uploadError) throw uploadError;
+
+    // 2. 獲取 Public 瀏覽網址
+    const { data: urlData } = supabaseClient.storage
+      .from('barcode-images')
+      .getPublicUrl(filePath);
+    
+    const publicImageUrl = urlData.publicUrl;
+
+    // 3. 寫入資料庫（全面修正為底線欄位名稱）
+    const newItem = {
       id: Date.now().toString(),
-      name, disc, expireAt,
-      createdAt: new Date().toISOString(),
+      name, 
+      disc, 
+      expire_at: expireAt, 
+      created_at: new Date().toISOString(), 
       type: 'photo',
-      photoData: currentPhotoDataUrl,
-      value: '', format: 'PHOTO'
-    });
-    saveItems();
-    showToast('條碼照片已儲存！', 'success');
-    clearPhotoForm();
-    switchTab('list');
-    renderList();
+      photo_data: publicImageUrl, 
+      value: '', 
+      format: 'PHOTO'
+    };
+
+    const { error: dbError } = await supabaseClient.from('barcodes').insert([newItem]);
+    if (dbError) throw dbError;
+
+    items.unshift(newItem);
+    updateHeader();
+    showToast('條碼照片已成功發布至雲端！', 'success');
+    clearPhotoForm(); switchTab('list'); renderList();
   } catch(e) {
-    errEl.textContent = '儲存失敗：可能是圖片太大，請換較小的圖片試試';
-    errEl.style.display = 'block';
+    console.error(e);
+    errEl.style.background = 'var(--red-light)'; errEl.style.color = 'var(--red)';
+    errEl.textContent = '雲端儲存失敗：' + (e.message || '連線錯誤');
   }
 }
 
-// ═══════════════════════════════════════════════
-// ── RENDER LIST ──
-// ═══════════════════════════════════════════════
+// ── 渲染主畫面清單（全面對齊底線欄位名稱） ──
 function renderList() {
   const query = document.getElementById('searchInput').value.toLowerCase();
   const filter = document.getElementById('filterSelect').value;
@@ -925,7 +991,7 @@ function renderList() {
   let visible = items.filter(item => {
     const status = getExpireStatus(item);
     const matchSearch = item.name.toLowerCase().includes(query) || (item.value||'').includes(query);
-    const matchFilter = filter === 'all' ? true : filter === 'permanent' ? !item.expireAt : status === filter;
+    const matchFilter = filter === 'all' ? true : filter === 'permanent' ? !item.expire_at : status === filter; // 修正為 expire_at
     return matchSearch && matchFilter;
   });
 
@@ -935,7 +1001,7 @@ function renderList() {
         <rect x="3" y="4" width="4" height="16" rx="1"/><rect x="9" y="4" width="2" height="16" rx="1"/>
         <rect x="13" y="4" width="4" height="16" rx="1"/><rect x="19" y="4" width="2" height="16" rx="1"/>
       </svg>
-      <p>${query ? '找不到符合的條碼' : '尚無條碼，請點「新增條碼」或「上傳照片」開始'}</p>
+      <p>${query ? '找不到符合的條碼' : '雲端尚無條碼，請點「新增條碼」或「上傳照片」開始'}</p>
     </div>`;
     return;
   }
@@ -951,22 +1017,23 @@ function renderList() {
       expired: '<span class="tag tag-expired">已過期</span>',
       permanent: '<span class="tag tag-active">永久有效</span>',
     };
-    const expireInfo = item.expireAt
-      ? `<span class="expire-info ${status==='expiring'?'warn':status==='expired'?'expired':''}">⏱ ${expLabel}（到期：${new Date(item.expireAt).toLocaleString('zh-TW')}）</span>`
+    
+    // 修正為 expire_at
+    const expireInfo = item.expire_at
+      ? `<span class="expire-info ${status==='expiring'?'warn':status==='expired'?'expired':''}">⏱ ${expLabel}（到期：${new Date(item.expire_at).toLocaleString('zh-TW')}）</span>`
       : `<span class="expire-info">♾️ 永久有效</span>`;
 
     const isPhoto = item.type === 'photo';
 
-    // Barcode area content
+    // 修正為 photo_data
     const barcodeAreaContent = isPhoto
-      ? `<img src="${item.photoData}" alt="${escHtml(item.name)}" style="max-width:100%; max-height:180px; object-fit:contain; border-radius:6px;">`
+      ? `<img src="${item.photo_data}" alt="${escHtml(item.name)}" style="max-width:100%; max-height:180px; object-fit:contain; border-radius:6px;">`
       : `<svg id="barcode-svg-${item.id}"></svg>`;
 
-    // Action buttons
     const scanBtn = `<button class="btn btn-primary btn-sm" title="放大給店員掃描" onclick="openScan('${item.id}')">🔍 掃描</button>`;
     const toggleBtn = !isPhoto
       ? `<button class="btn btn-secondary btn-sm btn-icon" title="顯示條碼" onclick="toggleBarcode('${item.id}','${escAttr(item.value)}','${item.format}')">📊</button>`
-      : `<button class="btn btn-secondary btn-sm btn-icon" title="顯示條碼" onclick="toggleBarcodePhoto('${item.id}')">🖼️</button>`;
+      : `<button class="btn btn-secondary btn-sm btn-icon" title="顯示圖片" onclick="toggleBarcodePhoto('${item.id}')">🖼️</button>`;
     const dlBtn = !isPhoto
       ? `<button class="btn btn-secondary btn-sm btn-icon" title="下載" onclick="downloadItem('${item.id}','${escAttr(item.name)}','${escAttr(item.value)}','${item.format}')">⬇️</button>`
       : '';
@@ -974,8 +1041,9 @@ function renderList() {
       ? `<button class="btn btn-secondary btn-sm btn-icon" title="複製條碼數字" onclick="copyValue('${escAttr(item.value)}')">📋</button>` : '';
     const delBtn = `<button class="btn btn-danger btn-sm btn-icon" title="刪除" onclick="confirmDelete('${item.id}','${escAttr(item.name)}')">🗑️</button>`;
 
+    // 修正為 created_at
     return `<div class="item-card" id="card-${item.id}">
-      <div class="expire-bar-wrap"><div class="expire-bar" style="width:${item.expireAt?pct:100}%; background:${barColor};"></div></div>
+      <div class="expire-bar-wrap"><div class="expire-bar" style="width:${item.expire_at?pct:100}%; background:${barColor};"></div></div>
       <div class="item-card-header">
         <div>
           <div class="item-name">${escHtml(item.name)}</div>
@@ -987,7 +1055,7 @@ function renderList() {
         </div>
         <div style="text-align:right;">
           ${scanBtn}
-          <div style="font-size:11px; color:var(--ink-light); margin-top:6px;">新增 ${new Date(item.createdAt).toLocaleDateString('zh-TW')}</div>
+          <div style="font-size:11px; color:var(--ink-light); margin-top:6px;">新增 ${new Date(item.created_at).toLocaleDateString('zh-TW')}</div>
         </div>
       </div>
       <div class="item-barcode-area" id="barcode-area-${item.id}">${barcodeAreaContent}</div>
@@ -999,7 +1067,7 @@ function renderList() {
   }).join('');
 }
 
-// ── Toggle barcode display ──
+// ── 切換條碼展開/縮合 ──
 function toggleBarcode(id, value, format) {
   const area = document.getElementById('barcode-area-' + id);
   if (area.classList.contains('show')) { area.classList.remove('show'); return; }
@@ -1012,7 +1080,7 @@ function toggleBarcodePhoto(id) {
   area.classList.toggle('show');
 }
 
-// ── Download item ──
+// ── 下載單個條碼 ──
 function downloadItem(id, name, value, format) {
   const tempSvg = document.createElement('svg');
   tempSvg.id = 'temp-dl-' + id;
@@ -1029,15 +1097,25 @@ function copyValue(val) {
   navigator.clipboard.writeText(val).then(() => showToast('條碼數字已複製！', 'success'));
 }
 
-// ── Delete ──
+// ── 從雲端同步刪除資料 ──
 function confirmDelete(id, name) {
   deleteTarget = id;
   document.getElementById('deleteModalMsg').textContent = `確定要刪除「${name}」嗎？此操作無法復原。`;
-  document.getElementById('deleteConfirmBtn').onclick = () => {
+  document.getElementById('deleteConfirmBtn').onclick = async () => {
+    const { error } = await supabaseClient
+      .from('barcodes')
+      .delete()
+      .eq('id', deleteTarget);
+
+    if (error) {
+      showToast('刪除失敗：' + error.message, 'error');
+      closeModal('deleteModal');
+      return;
+    }
+
     items = items.filter(i => i.id !== deleteTarget);
-    saveItems(); renderList();
-    closeModal('deleteModal');
-    showToast('條碼已刪除', 'error');
+    updateHeader(); renderList(); closeModal('deleteModal');
+    showToast('條碼已自雲端安全刪除', 'error');
   };
   document.getElementById('deleteModal').classList.add('show');
 }
@@ -1046,9 +1124,7 @@ function closeModal(id) {
   deleteTarget = null;
 }
 
-// ═══════════════════════════════════════════════
-// ── SCAN FULLSCREEN ──
-// ═══════════════════════════════════════════════
+// ── 燈箱放大細節（對齊底線欄位名稱） ──
 function openScan(id) {
   const item = items.find(i => i.id === id);
   if (!item) return;
@@ -1056,21 +1132,20 @@ function openScan(id) {
   const overlay = document.getElementById('scanOverlay');
   const svgEl   = document.getElementById('scanSvg');
   const imgEl   = document.getElementById('scanImg');
-  const box     = document.getElementById('scanBarcodeBox');
 
   document.getElementById('scanName').textContent = item.name;
   document.getElementById('scanDisc').textContent = item.disc || '';
 
-  // Expire info
-  const expLabel = item.expireAt
-    ? `⏱ ${formatExpireLabel(item)}（到期：${new Date(item.expireAt).toLocaleString('zh-TW')}）`
+  // 修正為 expire_at
+  const expLabel = item.expire_at
+    ? `⏱ ${formatExpireLabel(item)}（到期：${new Date(item.expire_at).toLocaleString('zh-TW')}）`
     : '♾️ 永久有效';
   document.getElementById('scanExpire').textContent = expLabel;
 
   if (item.type === 'photo') {
     svgEl.style.display = 'none';
     imgEl.style.display = 'block';
-    imgEl.src = item.photoData;
+    imgEl.src = item.photo_data; // 修正為 photo_data
   } else {
     imgEl.style.display = 'none';
     svgEl.style.display = 'block';
@@ -1088,10 +1163,8 @@ function openScan(id) {
 
   setBrightness(100);
   overlay.classList.add('show');
-  // Try fullscreen
   if (overlay.requestFullscreen) overlay.requestFullscreen().catch(()=>{});
   else if (overlay.webkitRequestFullscreen) overlay.webkitRequestFullscreen();
-  // Keep screen on (if supported)
   keepScreenOn();
 }
 
@@ -1105,7 +1178,7 @@ function setBrightness(val) {
   document.getElementById('scanBarcodeBox').style.filter = `brightness(${val}%)`;
 }
 
-// Screen Wake Lock
+// 螢幕防熄燈鎖 (Screen Wake Lock API)
 let wakeLock = null;
 async function keepScreenOn() {
   try {
@@ -1116,20 +1189,20 @@ function releaseScreenLock() {
   if (wakeLock) { wakeLock.release().catch(()=>{}); wakeLock = null; }
 }
 
-// Close scan on ESC
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeScan();
 });
 
-// ── Clean expired ──
-function cleanExpired() {
+// ── 清除過期條碼 ──
+async function cleanExpired() {
   const before = items.length;
-  autoCleanExpired(); renderList();
+  await autoCleanExpired(); 
+  renderList();
   const removed = before - items.length;
-  showToast(removed > 0 ? `已清除 ${removed} 筆過期條碼` : '目前沒有過期條碼', removed > 0 ? 'error' : '');
+  showToast(removed > 0 ? `已清除 ${removed} 筆過期條碼` : '目前雲端沒有過期條碼', removed > 0 ? 'error' : '');
 }
 
-// ── Print ──
+// ── 批次展開列印 ──
 function printAll() {
   items.forEach(item => {
     const area = document.getElementById('barcode-area-' + item.id);
@@ -1143,13 +1216,13 @@ function printAll() {
   setTimeout(() => window.print(), 300);
 }
 
-// ── Header ──
+// ── 頂部統計數據更新（對齊底線欄位名稱） ──
 function updateHeader() {
   const active = items.filter(i => { const s = getExpireStatus(i); return s==='active'||s==='expiring'||s==='permanent'; }).length;
   document.getElementById('active-count').textContent = active;
 }
 
-// ── Toast ──
+// ── Toast 提示框架 ──
 function showToast(msg, type='') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -1158,7 +1231,7 @@ function showToast(msg, type='') {
   t._timer = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
-// ── Escape helpers ──
+// ── XSS 安全過濾器 ──
 function escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -1166,7 +1239,6 @@ function escAttr(str) {
   return String(str).replace(/'/g,"\\'").replace(/"/g,'&quot;');
 }
 
-// ── Modal overlay click ──
 document.getElementById('deleteModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal('deleteModal');
 });
@@ -1174,7 +1246,7 @@ document.getElementById('scanOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeScan();
 });
 
-// ── Boot ──
+// ── 系統啟動開關 ──
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('itemName').addEventListener('input', livePreview);
   document.getElementById('discountLabel').addEventListener('input', livePreview);
